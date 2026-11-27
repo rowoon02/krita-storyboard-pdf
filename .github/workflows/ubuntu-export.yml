@@ -1,0 +1,76 @@
+name: Ubuntu storyboard export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - storyboard_pdf.py
+      - .github/workflows/ubuntu-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install the documented dependencies
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install Pillow reportlab
+          python -m pip install pypdf
+      - name: Export two storyboard scenes and check the PDF
+        run: |
+          . .venv/bin/activate
+          python - <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from zipfile import ZipFile
+
+          from PIL import Image
+          from pypdf import PdfReader
+
+          exporter = Path("storyboard_pdf.py").resolve()
+          size = (2480, 1754)
+          scenes = [(8, "Opening", "navy"), (12, "Closing", "gold")]
+
+          with TemporaryDirectory() as directory:
+              root = Path(directory)
+              frames = root / "png-sequence"
+              frames.mkdir()
+              index = "<storyboard><StoryboardItemList>"
+              for frame, title, color in scenes:
+                  index += f'<storyboarditem frame="{frame}" item-name="{title}"/>'
+                  number = 100 + frame - 8
+                  Image.new("RGB", size, color).save(frames / f"shot{number:04d}.png")
+              index += "</StoryboardItemList></storyboard>"
+              project = root / "pitch.kra"
+              with ZipFile(project, "w") as archive:
+                  archive.writestr("pitch/storyboard/index.xml", index)
+
+              output = root / "pitch-review.pdf"
+              subprocess.run(
+                  [sys.executable, str(exporter), str(project), str(frames), str(output),
+                   "--base", "shot", "--first-frame", "8", "--numbering-start", "100"],
+                  check=True,
+              )
+              pdf = PdfReader(output)
+              assert len(pdf.pages) == len(scenes)
+              for page, (frame, title, color) in zip(pdf.pages, scenes):
+                  assert title in page.extract_text() and f"Frame {frame}" in page.extract_text()
+                  assert abs(float(page.mediabox.width) - 841.89) < 0.1
+                  assert abs(float(page.mediabox.height) - 595.28) < 0.1
+                  assert len(page.images) == 1
+                  image = page.images[0].image.convert("RGB")
+                  assert image.size == size
+                  assert image.getpixel((0, 0)) == Image.new("RGB", (1, 1), color).getpixel((0, 0))
+              print("Verified two landscape A4 pages, scene order, and full-resolution panel images.")
+          PY
