@@ -6,10 +6,19 @@ Keep the scene names and existing Storyboard Docker comments when making a portf
 
 1. Save your project as a `.kra` file. The default PDF includes all saved comment fields, including fields hidden in the Storyboard Docker. Use `--images-only` for a copy that omits these comments and the scene names.
 2. In Krita, choose **File → Render Animation**. Export a **PNG image sequence** at the pixel dimensions you want, in an empty folder. Turn off **Only Unique Frames**. Record the base name, first frame, and **Start numbering at** settings.
-3. Install Python 3.9 or later and the two dependencies in your Python environment.
+3. Unzip the exporter and open a terminal in the folder containing `storyboard_pdf.py`. The exporter runs outside Krita, so it works independently of Krita’s Python plugins. With Python 3.9 or later installed, create a virtual environment for its two dependencies. On Ubuntu or macOS, run:
 
    ```sh
+   python3 -m venv .venv
+   . .venv/bin/activate
    python -m pip install Pillow reportlab
+   ```
+
+   If Ubuntu says `ensurepip` is unavailable, install `python3-venv` using Ubuntu’s package manager, then repeat the commands above. On Windows PowerShell, you can use the virtual environment directly:
+
+   ```powershell
+   py -3 -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install Pillow reportlab
    ```
 
 4. Run the exporter. For example, if your PNG sequence starts at timeline frame 8 and Krita named that first file `shot0100.png`, use this command.
@@ -17,6 +26,8 @@ Keep the scene names and existing Storyboard Docker comments when making a portf
    ```sh
    python storyboard_pdf.py "pitch.kra" "png-sequence" "pitch-review.pdf" --base shot --first-frame 8 --numbering-start 100
    ```
+
+   In Windows PowerShell, use `.\.venv\Scripts\python.exe` in place of `python` in the export command. The script reads the saved project and rendered PNGs directly. If Krita’s Storyboard Docker produced an empty, incomplete, or missing PDF or SVG, you can start from step 1 with the original `.kra`. Check that the PNGs from step 2 show all the layers you want before exporting.
 
 Timeline frame 12 in this example uses `shot0104.png`. The exporter starts a page for each scene that begins in the selected range. It keeps the PNG pixel dimensions while fitting the image on a landscape A4 page. Notes can continue onto another page. Use `--last-frame` to set an inclusive timeline end. A missing scene PNG stops the export and identifies the missing file.
 
